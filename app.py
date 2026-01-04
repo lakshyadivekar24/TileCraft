@@ -1,3 +1,4 @@
+# libraries
 from flask import Flask, render_template, request, send_file, jsonify
 from PIL import Image, ImageDraw
 import io
