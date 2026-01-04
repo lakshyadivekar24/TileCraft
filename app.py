@@ -7,7 +7,7 @@ import base64
 app = Flask(__name__)
 
 # --- CONFIGURATION ---
-DPI = 300
+DPI = 150
 MM_TO_INCH = 25.4
 
 # Standard Page Sizes in Millimeters (Width x Height)
