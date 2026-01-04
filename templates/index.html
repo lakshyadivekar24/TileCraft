@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TileCraft | The Blueprint Studio</title>
+
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}">
+
+    <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --paper: #f4e8d1;
+            --ink: #2c3e50;
+            --accent: #d35400;
+            --highlight: #f1c40f;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; cursor: none; /* Hide default cursor */ }
+
+        body {
+            font-family: 'Patrick Hand', cursive;
+            background-color: #e8ded2;
+            background-image: 
+                linear-gradient(rgba(44, 62, 80, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(44, 62, 80, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+            color: var(--ink);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        /* --- 1. CUSTOM PENCIL CURSOR --- */
+        #cursor {
+            position: fixed;
+            top: 0; left: 0;
+            width: 30px; height: 30px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%232c3e50"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>') no-repeat center center;
+            background-size: contain;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%) rotate(-15deg);
+            transition: transform 0.05s ease; /* Faster response */
+        }
+        
+        /* --- 2. TRAIL EFFECT (Graphite Dust) --- */
+        .cursor-trail {
+            position: fixed; width: 8px; height: 8px;
+            background: var(--ink); border-radius: 50%;
+            pointer-events: none; z-index: 9998;
+            opacity: 0.6;
+            animation: fadeTrail 0.6s forwards;
+        }
+        @keyframes fadeTrail { 
+            0% { opacity: 0.6; transform: scale(1); } 
+            100% { opacity: 0; transform: scale(0.2); } 
+        }
+
+        /* --- 3. EXPLOSION EFFECT (Ink/Paint Burst) --- */
+        .click-particle {
+            position: absolute; width: 8px; height: 8px;
+            border-radius: 50%; pointer-events: none; z-index: 9999;
+            /* Random shapes via border-radius in JS or fixed here */
+            animation: explode 0.6s ease-out forwards;
+        }
+        @keyframes explode { 
+            0% { transform: translate(0,0) scale(1); opacity: 1; } 
+            100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; } 
+        }
+
+        /* --- MAIN CONTAINER --- */
+        .app-container {
+            width: 100%;
+            max-width: 1100px;
+            background: var(--paper);
+            border: 4px solid var(--ink);
+            box-shadow: 15px 15px 0 rgba(44, 62, 80, 0.8);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            animation: slideIn 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(50px) rotate(-2deg); opacity: 0; }
+            to { transform: translateY(0) rotate(0); opacity: 1; }
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px;
+            border-bottom: 3px dashed var(--ink);
+            position: relative;
+        }
+        
+        .logo-svg { width: 80px; height: 80px; display: block; margin: 0 auto 10px auto; }
+        .header h1 {
+            font-size: 2.5rem; text-transform: uppercase; letter-spacing: 2px;
+            display: inline-block; transition: transform 0.2s;
+        }
+        .header h1:hover { transform: scale(1.05) rotate(-2deg); }
+
+        .content-area { display: flex; padding: 30px; gap: 30px; }
+        .sidebar { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 25px; }
+
+        .upload-box {
+            border: 3px solid var(--ink); transform: rotate(-1deg);
+            background: #fffbf0; padding: 30px; text-align: center;
+            position: relative; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .upload-box:hover { transform: rotate(1deg) scale(1.03); box-shadow: 8px 8px 0 rgba(44, 62, 80, 0.1); }
+        .upload-icon { font-size: 3rem; display: block; animation: float 3s ease-in-out infinite; }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+        .input-group { position: relative; }
+        .label-txt {
+            font-size: 1.3rem; background: var(--paper); padding: 0 10px;
+            position: absolute; top: -12px; left: 10px; font-weight: bold; z-index: 2;
+        }
+        
+        .row { display: flex; gap: 15px; border: 3px solid var(--ink); padding: 25px 15px 15px 15px; transition: border-radius 0.3s; }
+        .row:hover { border-radius: 10px 15px 5px 10px; }
+
+        input, select {
+            width: 100%; padding: 10px; border: none; border-bottom: 2px dotted var(--ink);
+            background: transparent; font-family: inherit; font-size: 1.2rem; outline: none; color: var(--ink);
+        }
+        input:focus { border-bottom-style: solid; }
+
+        .btn {
+            width: 100%; padding: 15px; border: 3px solid var(--ink);
+            font-family: inherit; font-weight: bold; font-size: 1.5rem;
+            background: var(--highlight); box-shadow: 6px 6px 0 var(--ink);
+            transition: all 0.2s; position: relative; overflow: hidden;
+        }
+        .btn:hover {
+            animation: wiggle 0.4s linear infinite;
+            box-shadow: 8px 8px 0 var(--ink); background: #f39c12;
+        }
+        @keyframes wiggle { 0% { transform: rotate(0deg); } 25% { transform: rotate(-1deg); } 50% { transform: rotate(1deg); } 75% { transform: rotate(-1deg); } 100% { transform: rotate(0deg); } }
+        .btn:active { transform: scale(0.95); box-shadow: 2px 2px 0 var(--ink); }
+        
+        .btn-download { background: #27ae60; color: white; display: none; }
+        .btn-download:hover { background: #2ecc71; }
+
+        .preview-pane {
+            flex: 1.5; background: #dacbb8; border: 3px solid var(--ink);
+            display: flex; justify-content: center; align-items: center;
+            padding: 30px; position: relative; min-height: 400px;
+            background-image: radial-gradient(#bfa78a 15%, transparent 16%);
+            background-size: 10px 10px;
+        }
+
+        .preview-container {
+            position: relative; background: white; padding: 8px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2); display: none;
+            transform: rotate(1deg); animation: dropIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes dropIn { from { transform: scale(0.5) rotate(-10deg); opacity: 0; } to { transform: scale(1) rotate(1deg); opacity: 1; } }
+
+        .preview-container::before {
+            content: ''; position: absolute; width: 120px; height: 35px;
+            background: rgba(255, 255, 255, 0.6); top: -15px; left: 35%;
+            transform: rotate(-2deg); border: 1px solid rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .preview-container img { max-width: 100%; max-height: 60vh; display: block; border: 1px solid #ddd; }
+
+        .spinner {
+            width: 60px; height: 60px; background: transparent; border-radius: 50%;
+            border: 4px solid transparent; border-top: 4px solid var(--ink); border-bottom: 4px solid var(--ink);
+            animation: scribbleSpin 1s infinite linear, scribbleShake 0.5s infinite ease-in-out; display: none;
+        }
+        @keyframes scribbleSpin { 100% { transform: rotate(360deg); } }
+        @keyframes scribbleShake { 0%, 100% { border-radius: 50%; } 50% { border-radius: 40% 60% 50% 50%; } }
+
+        @media (max-width: 768px) {
+            .content-area { flex-direction: column; } .preview-pane { min-height: 300px; }
+            #cursor { display: none; } * { cursor: auto; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="cursor"></div>
+
+    <div class="app-container">
+        <div class="header">
+            <svg class="logo-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                <defs><filter id="sketchy"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="3" result="noise" /><feDisplacementMap in="SourceGraphic" in2="noise" scale="3" /></filter></defs>
+                <g style="filter: url(#sketchy);" fill="none" stroke="#2c3e50" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="40" y="40" width="120" height="120" transform="rotate(-2 100 100)" style="fill: #fffbf0;"/>
+                  <path d="M80 40 V160" stroke-dasharray="8,4"/><path d="M120 40 V160" stroke-dasharray="8,4"/><path d="M40 80 H160" stroke-dasharray="8,4"/><path d="M40 120 H160" stroke-dasharray="8,4"/>
+                  <g transform="translate(140, 20) rotate(15)"><rect x="0" y="0" width="15" height="60" fill="#f1c40f" stroke="#2c3e50" stroke-width="2"/><polygon points="0,60 15,60 7.5,80" fill="#d35400"/><polygon points="5,75 10,75 7.5,80" fill="#2c3e50"/></g>
+                </g>
+            </svg>
+            <h1>📐 The Blueprint Tiler</h1>
+            <p>Animated Studio v3.0</p>
+        </div>
+        
+        <div class="content-area">
+            <div class="sidebar">
+                <div class="upload-box" id="drop-zone">
+                    <input type="file" id="imageInput" accept="image/*" hidden>
+                    <span class="upload-icon">🎨</span>
+                    <div style="font-size: 1.4rem; font-weight: bold;">Drop Art Here</div>
+                    <div id="file-name-display" style="display:none; color:var(--accent); font-weight:bold; margin-top:5px;"></div>
+                </div>
+
+                <div class="input-group" style="margin-top: 20px;">
+                    <span class="label-txt">Wall / Canvas Size</span>
+                    <div class="row">
+                        <input type="number" id="widthInput" placeholder="W" step="0.1">
+                        <span style="font-size: 1.5rem; align-self: center;">x</span>
+                        <input type="number" id="heightInput" placeholder="H" step="0.1">
+                        <select id="unitInput" style="flex: 0.8; border-left: 3px solid var(--ink); padding-left: 15px;">
+                            <option value="cm">cm</option> <option value="mm">mm</option> <option value="inch">inch</option> <option value="ft">ft</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="input-group" style="margin-top: 15px;">
+                    <span class="label-txt">Printer Paper Size</span>
+                    <div class="row">
+                        <select id="formatInput" onchange="updateSheetLabel()">
+                            <option value="a4">A4 (Standard)</option> <option value="a3">A3 (Double)</option> <option value="a2">A2 (Poster)</option> <option value="letter">US Letter</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="btn" onclick="getPreview()">✏️ Start Sketching</button>
+                <button class="btn btn-download" id="dlBtn" onclick="downloadPDF()">🖨️ Print Blueprint</button>
+            </div>
+
+            <div class="preview-pane">
+                <div class="spinner" id="loadingSpinner"></div>
+                <div id="emptyState" style="font-size: 2rem; opacity: 0.4; transform: rotate(-5deg);">Waiting...</div>
+                <div class="preview-container" id="previewContainer">
+                    <img id="preview-img" src="" alt="Preview">
+                    <div style="text-align:center; margin-top:10px; font-weight:bold;">
+                        Required: <span id="pageCount" style="color:var(--accent); font-size: 1.5rem;">0</span> Sheets
+                        <span id="sheetFormatDisplay" style="display:block; font-size: 0.9rem; color:#666;">(A4 Size)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. Custom Cursor Logic + TRAIL EFFECT ---
+        const cursor = document.getElementById('cursor');
+        
+        document.addEventListener('mousemove', (e) => {
+            // Move main pencil
+            cursor.style.left = e.clientX + 'px';
+            cursor.style.top = e.clientY + 'px';
+            
+            // Create Trail (Graphite Dust)
+            createTrail(e.clientX, e.clientY);
+        });
+
+        // Function to create trail dots
+        function createTrail(x, y) {
+            const trail = document.createElement('div');
+            trail.className = 'cursor-trail';
+            trail.style.left = x + 'px';
+            trail.style.top = y + 'px';
+            
+            // Add slight randomness for "dust" feel
+            const randX = Math.random() * 6 - 3;
+            const randY = Math.random() * 6 - 3;
+            trail.style.transform = `translate(-50%, -50%) translate(${randX}px, ${randY}px)`;
+            
+            document.body.appendChild(trail);
+            
+            // Cleanup
+            setTimeout(() => { trail.remove(); }, 600);
+        }
+
+        // Mouse Down/Up animations
+        document.addEventListener('mousedown', () => {
+            cursor.style.transform = "translate(-50%, -50%) rotate(-45deg) scale(0.8)";
+        });
+        document.addEventListener('mouseup', () => {
+            cursor.style.transform = "translate(-50%, -50%) rotate(-15deg) scale(1)";
+        });
+
+
+        // --- 2. EXPLOSION / PARTICLE EFFECT (Ink Burst) ---
+        document.addEventListener('click', (e) => {
+            // Create 12 particles per click
+            for (let i = 0; i < 12; i++) {
+                createParticle(e.clientX, e.clientY);
+            }
+        });
+
+        function createParticle(x, y) {
+            const particle = document.createElement('div');
+            particle.className = 'click-particle';
+            particle.style.left = x + 'px';
+            particle.style.top = y + 'px';
+            
+            // Random Direction logic
+            const angle = Math.random() * Math.PI * 2;
+            const distance = Math.random() * 60 + 20; // Explosion radius
+            const tx = Math.cos(angle) * distance + 'px';
+            const ty = Math.sin(angle) * distance + 'px';
+            
+            particle.style.setProperty('--tx', tx);
+            particle.style.setProperty('--ty', ty);
+
+            // Random Color (Ink Blue, Accent Orange, Highlight Yellow)
+            const colors = ['var(--ink)', 'var(--accent)', 'var(--highlight)'];
+            particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            
+            document.body.appendChild(particle);
+            
+            // Cleanup
+            setTimeout(() => { particle.remove(); }, 600);
+        }
+
+
+        // --- 3. Backend Logic (Existing) ---
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('imageInput');
+        const fileNameDisplay = document.getElementById('file-name-display');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', () => { if(fileInput.files.length) showFile(fileInput.files[0]); });
+        
+        dropZone.addEventListener('dragover', (e) => { 
+            e.preventDefault(); 
+            dropZone.style.transform = "scale(1.05) rotate(2deg)";
+            dropZone.style.borderColor = "#d35400";
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.style.transform = "rotate(-1deg)";
+            dropZone.style.borderColor = "#2c3e50";
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.transform = "rotate(-1deg)";
+            dropZone.style.borderColor = "#2c3e50";
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                showFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        function showFile(file) {
+            fileNameDisplay.style.display = 'block';
+            fileNameDisplay.innerText = "📌 " + file.name;
+        }
+
+        function updateSheetLabel() {
+            const fmt = document.getElementById('formatInput').value;
+            document.getElementById('sheetFormatDisplay').innerText = `(${fmt.toUpperCase()} Size)`;
+        }
+
+        async function getPreview() {
+            const file = fileInput.files[0];
+            const w = document.getElementById('widthInput').value;
+            const h = document.getElementById('heightInput').value;
+            const unit = document.getElementById('unitInput').value;
+            const fmt = document.getElementById('formatInput').value;
+
+            if(!file || !w || !h) { alert("Hey! Don't leave the canvas empty."); return; }
+
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('previewContainer').style.display = 'none';
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('dlBtn').style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('width', w);
+            formData.append('height', h);
+            formData.append('unit', unit);
+            formData.append('page_format', fmt);
+
+            try {
+                const response = await fetch('/preview', { method: 'POST', body: formData });
+                const data = await response.json();
+
+                document.getElementById('loadingSpinner').style.display = 'none';
+                document.getElementById('previewContainer').style.display = 'block';
+                document.getElementById('preview-img').src = 'data:image/jpeg;base64,' + data.image_data;
+                document.getElementById('pageCount').innerText = data.pages;
+                document.getElementById('dlBtn').style.display = 'block';
+                
+            } catch (error) {
+                alert("Something went wrong!");
+                document.getElementById('loadingSpinner').style.display = 'none';
+                document.getElementById('emptyState').style.display = 'block';
+            }
+        }
+
+        function downloadPDF() {
+            const formData = new FormData();
+            formData.append('image', fileInput.files[0]);
+            formData.append('width', document.getElementById('widthInput').value);
+            formData.append('height', document.getElementById('heightInput').value);
+            formData.append('unit', document.getElementById('unitInput').value);
+            formData.append('page_format', document.getElementById('formatInput').value);
+
+            const btn = document.getElementById('dlBtn');
+            const originalText = btn.innerText;
+            btn.innerText = "⏳ Inking PDF...";
+            btn.disabled = true;
+            
+            fetch('/download', { method: 'POST', body: formData })
+            .then(res => res.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `Blueprint_${document.getElementById('formatInput').value}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                btn.innerText = originalText;
+                btn.disabled = false;
+            });
+        }
+    </script>
+</body>
+</html>
